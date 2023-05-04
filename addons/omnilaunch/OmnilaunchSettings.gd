@@ -7,6 +7,8 @@ onready var profiles = $"%Profiles"
 onready var new_profile = $"%NewProfile"
 onready var new_window = $"%NewWindow"
 onready var window_box = $"%WindowBox"
+onready var send_feedback = $"%SendFeedback"
+onready var feedback_dialog = $"%FeedbackDialog"
 
 var Window = preload('Window.tscn')
 var _data = {}
@@ -25,6 +27,9 @@ func _ready():
 	profiles.connect('profile_created', self, 'profile_created')
 	profiles.connect('profile_deleted', self, 'profile_deleted')
 
+	send_feedback.connect('pressed', self, 'feedback_requested')
+	feedback_dialog.connect('confirmed', self, 'feedback_confirmed')
+	
 func new_profile():
 	var profile_name = 'New Profile'
 	var i = 1
@@ -84,6 +89,16 @@ func profile_deleted(profile_name):
 		for key in _data.profiles:
 			_data.current_profile = key
 			break
+
+# ------------------------------------------------------------------------------
+
+func feedback_requested():
+	feedback_dialog.open()
+
+func feedback_confirmed():
+	var feedback = feedback_dialog.get_feedback()
+
+	plugin.playerloop.send_report(feedback)
 
 # ******************************************************************************
 

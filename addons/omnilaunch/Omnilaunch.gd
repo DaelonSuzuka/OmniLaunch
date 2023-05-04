@@ -3,11 +3,6 @@ extends EditorPlugin
 
 # ******************************************************************************
 
-var pids := []
-var settings_dialog = null
-
-# ******************************************************************************
-
 var default_window = {
 	'name': 'main',
 	'main': true,
@@ -48,22 +43,25 @@ var default_settings = {
 
 # ******************************************************************************
 
+var pids := []
 var settings = null
 var current_profile = ''
-var editor_toolbar = null
-var layout_templates = null
 var profiles = null
 
+var playerloop = null
+const playerloop_secret := 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbklkIjoxNjc5NTk2MH0.5GC4kV8H_JnPrYwA2okT4cNJZh85WLKFMMQW_t-sxFU'
+var settings_dialog = null
+var layout_templates = null
+var editor_toolbar = null
+
 func _enter_tree():
-	settings_dialog = load('res://addons/omnilaunch/OmnilaunchSettings.tscn').instance()
-	settings_dialog.plugin = self
+	playerloop = load('res://addons/omnilaunch/playerloop.gd').new()
+	playerloop._secret = playerloop_secret
+	add_child(playerloop)
 	
 	layout_templates = load('res://addons/omnilaunch/LayoutTemplates.tscn').instance()
 	var base = get_editor_interface().get_base_control()
 	base.add_child(layout_templates)
-
-	add_child(settings_dialog)
-	settings_dialog.connect('confirmed', self, 'settings_confirmed')
 
 	editor_toolbar = load('res://addons/omnilaunch/EditorToolbar.tscn').instance()
 
@@ -110,8 +108,21 @@ func profile_selected(index):
 	save_settings()
 
 func settings_pressed():
+	if settings_dialog:
+		settings_dialog.queue_free()
+		settings_dialog = null
+
+	settings_dialog = load('res://addons/omnilaunch/OmnilaunchSettings.tscn').instance()
+	settings_dialog.plugin = self
+	add_child(settings_dialog)
+	settings_dialog.connect('confirmed', self, 'settings_confirmed')
 	settings_dialog.set_data(settings)
-	settings_dialog.popup_centered(Vector2(800, 600))
+	settings_dialog.popup_centered(Vector2(800, 650))
+
+func settings_confirmed():
+	settings = settings_dialog.get_data()
+	save_settings()
+	reload_profile_list()
 
 func run_pressed():
 	var profile_name = profiles.get_item_text(profiles.selected)
@@ -122,18 +133,32 @@ func stop_pressed():
 	get_editor_interface().stop_playing_scene()
 	kill_pids()
 
-func settings_confirmed():
-	settings = settings_dialog.get_data()
-	save_settings()
-	reload_profile_list()
-
 # ******************************************************************************
 
 func load_settings():
 	settings = load_json('res://omnilaunch_settings.json', default_settings)
 
+	# figure out default profile
+	var default = 'default'
+	if !(default in settings.profiles):
+		for profile in settings.profiles:
+			default = profile
+			break
+
+	# load and merge user settings
+	var user_settings = load_json('user://omnilaunch_settings.json', {})
+	settings['current_profile'] = user_settings.get('current_profile', default)
+
 func save_settings():
-	save_json('res://omnilaunch_settings.json', settings)
+	var project_settings = settings.duplicate(true)
+
+	var user_settings = {
+		'current_profile': project_settings.current_profile,
+	}
+	project_settings.erase('current_profile')
+
+	save_json('res://omnilaunch_settings.json', project_settings)
+	save_json('user://omnilaunch_settings.json', user_settings)
 
 # ******************************************************************************
 
